@@ -139,6 +139,7 @@ export default function CommandCenter() {
   const [reviews, setReviews] = useState<Record<string, Item[]>>({});
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState<string | null>(todayStr());
+  const [overdue, setOverdue] = useState<Item[]>([]);
   const [inboxCount, setInboxCount] = useState(0);
   const [oldest, setOldest] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
@@ -189,6 +190,20 @@ export default function CommandCenter() {
         .order("created_at", { ascending: true }),
     );
     setTodayReviews((tr as Item[]) ?? []);
+
+    // 어제 이전에 '오늘 할 일'로 올렸는데 아직 못 끝낸 것
+    const { data: od } = await proj(
+      supabase
+        .from("items")
+        .select("*")
+        .eq("is_archived", false)
+        .neq("type", "review")
+        .neq("status", "done")
+        .not("focus_date", "is", null)
+        .lt("focus_date", today)
+        .order("focus_date", { ascending: true }),
+    );
+    setOverdue((od as Item[]) ?? []);
 
     const { data: inbox } = await proj(
       supabase
@@ -308,6 +323,32 @@ export default function CommandCenter() {
     );
   }
 
+  async function carryOne(it: Item) {
+    setOverdue((prev) => prev.filter((x) => x.id !== it.id)); // 낙관적
+    await supabase
+      .from("items")
+      .update({ focus_date: today, focus_rank: todos.length + 1, status: "active" })
+      .eq("id", it.id);
+    loadToday();
+    loadWeek();
+  }
+
+  async function carryAll() {
+    if (overdue.length === 0) return;
+    const ids = overdue.map((x) => x.id);
+    setOverdue([]); // 낙관적
+    await Promise.all(
+      ids.map((id, i) =>
+        supabase
+          .from("items")
+          .update({ focus_date: today, focus_rank: todos.length + 1 + i, status: "active" })
+          .eq("id", id),
+      ),
+    );
+    loadToday();
+    loadWeek();
+  }
+
   async function addTodo() {
     const title = slotText.trim();
     if (!title || !userId) {
@@ -398,6 +439,43 @@ export default function CommandCenter() {
           </p>
         )}
       </div>
+
+      {overdue.length > 0 && (
+        <div className="rounded-panel border-[0.5px] border-warning bg-ink-0 p-3.5">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="font-mono text-[11px] text-warning">
+              어제 이전에 못 끝낸 {overdue.length}개
+            </p>
+            <button
+              onClick={carryAll}
+              className="rounded border-[0.5px] border-warning px-2 py-0.5 font-mono text-[11px] text-warning hover:bg-warning hover:text-white"
+            >
+              전부 오늘로
+            </button>
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {overdue.map((it) => (
+              <li
+                key={it.id}
+                className="flex items-center gap-2 rounded-card border-[0.5px] border-ink-200 bg-ink-50 px-3 py-2"
+              >
+                <span className="font-mono text-[10px] text-ink-400">
+                  {monthDay(it.focus_date!)}
+                </span>
+                <span className="flex-1 truncate text-sm text-ink-700">
+                  {it.title}
+                </span>
+                <button
+                  onClick={() => carryOne(it)}
+                  className="shrink-0 rounded border-[0.5px] border-ink-200 px-2 py-0.5 font-mono text-[11px] text-ink-500 hover:border-signal-400 hover:text-signal-600"
+                >
+                  오늘로
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div>
         <p className="mb-2 font-mono text-[11px] tracking-wide text-ink-400">
