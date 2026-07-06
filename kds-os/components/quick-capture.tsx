@@ -63,14 +63,14 @@ export function QuickCapture({
           placeholder="무엇이든 빠르게… (URL이면 링크로 저장)"
           className="h-10 w-full border-none bg-transparent text-[15px] text-ink-900 outline-none placeholder:text-ink-400"
         />
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-ink-100 px-2 py-0.5 font-mono text-[11px] text-ink-500">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 font-mono text-[11px] text-ink-500">
             {preview.type}
           </span>
           <select
             value={projectId ?? ""}
             onChange={(e) => setProjectId(e.target.value || null)}
-            className="h-7 rounded border-[0.5px] border-ink-200 bg-ink-0 px-2 text-xs text-ink-500 outline-none"
+            className="h-7 min-w-0 flex-1 rounded border-[0.5px] border-ink-200 bg-ink-0 px-2 text-xs text-ink-500 outline-none"
           >
             <option value="">프로젝트 없음</option>
             {projects.map((p) => (
@@ -83,24 +83,27 @@ export function QuickCapture({
             type="date"
             value={due}
             onChange={(e) => setDue(e.target.value)}
-            className="h-7 rounded border-[0.5px] border-ink-200 bg-ink-0 px-2 text-xs text-ink-500 outline-none"
+            className="h-7 w-[130px] shrink-0 rounded border-[0.5px] border-ink-200 bg-ink-0 px-2 text-xs text-ink-500 outline-none"
           />
-          <div className="flex-1" />
-          {saved && (
-            <span className="font-mono text-[11px] text-signal-400">
-              › 저장됨
-            </span>
-          )}
-          <button
-            onClick={save}
-            className="h-7 rounded bg-signal-400 px-3 text-xs font-medium text-white active:scale-[0.98]"
-          >
-            저장
-          </button>
         </div>
-        <p className="font-mono text-[11px] text-ink-400">
-          enter로 저장하고 계속 입력 · esc로 닫기
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="font-mono text-[11px] text-ink-400">
+            enter로 저장하고 계속 입력 · esc로 닫기
+          </p>
+          <div className="flex items-center gap-2">
+            {saved && (
+              <span className="font-mono text-[11px] text-signal-400">
+                › 저장됨
+              </span>
+            )}
+            <button
+              onClick={save}
+              className="h-8 shrink-0 rounded bg-signal-400 px-4 text-sm font-medium text-white active:scale-[0.98]"
+            >
+              저장
+            </button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

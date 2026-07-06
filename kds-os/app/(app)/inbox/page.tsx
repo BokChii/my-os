@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Circle, FileText, Link2, Calendar, Copy } from "lucide-react";
+import { Circle, FileText, Link2, Calendar, Copy, CalendarPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useProject } from "@/components/app-shell";
 import { SystemLine } from "@/components/system-line";
@@ -27,7 +27,6 @@ export default function InboxPage() {
       .select("*")
       .eq("status", "inbox")
       .eq("is_archived", false)
-      .neq("type", "link")
       .order("created_at", { ascending: false });
     if (active) q = q.eq("project_id", active);
     const { data } = await q;
@@ -83,15 +82,23 @@ export default function InboxPage() {
                 >
                   오늘
                 </button>
-                <input
-                  type="date"
-                  onChange={(e) =>
-                    e.target.value &&
-                    patch(it.id, { due_date: e.target.value, status: "active" })
-                  }
-                  className="h-6 w-[34px] rounded border-[0.5px] border-ink-200 bg-ink-0 px-1 text-ink-400"
+                <label
+                  className="relative flex h-6 w-7 cursor-pointer items-center justify-center overflow-hidden rounded border-[0.5px] border-ink-200 text-ink-400 hover:border-signal-400 hover:text-signal-600"
                   title="날짜 지정"
-                />
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" />
+                  <input
+                    type="date"
+                    onChange={(e) =>
+                      e.target.value &&
+                      patch(it.id, {
+                        due_date: e.target.value,
+                        status: "active",
+                      })
+                    }
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                  />
+                </label>
                 <button
                   onClick={() => patch(it.id, { is_archived: true })}
                   className="rounded border-[0.5px] border-ink-200 px-2 py-0.5 text-ink-400 hover:border-danger hover:text-danger"
