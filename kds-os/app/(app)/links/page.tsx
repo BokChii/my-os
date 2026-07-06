@@ -7,22 +7,21 @@ import { SystemLine } from "@/components/system-line";
 import { enrichLink } from "@/lib/enrich";
 import type { Item, ReadState } from "@/types/db";
 
-const FILTERS: { key: "all" | ReadState; label: string }[] = [
+const FILTERS: { key: "all" | "unread" | "read"; label: string }[] = [
   { key: "all", label: "전체" },
   { key: "unread", label: "읽기 전" },
-  { key: "reading", label: "읽는 중" },
   { key: "read", label: "읽음" },
 ];
 const readLabel: Record<ReadState, string> = {
   unread: "읽기 전",
-  reading: "읽는 중",
+  reading: "읽음",
   read: "읽음",
 };
 
 export default function LinksPage() {
   const { active } = useProject();
   const [items, setItems] = useState<Item[] | null>(null);
-  const [filter, setFilter] = useState<"all" | ReadState>("all");
+  const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
   const tried = useRef<Set<string>>(new Set());
 
   const query = useCallback(async () => {
@@ -78,9 +77,14 @@ export default function LinksPage() {
 
   if (!items) return <SystemLine>불러오는 중…</SystemLine>;
 
-  const shown = items.filter(
-    (it) => filter === "all" || (it.metadata?.read_state ?? "unread") === filter,
-  );
+  const shown = items.filter((it) => {
+    if (filter === "all") return true;
+    // 과거 'reading' 상태는 '읽음'으로 취급
+    const rs = it.metadata?.read_state === "unread" || !it.metadata?.read_state
+      ? "unread"
+      : "read";
+    return rs === filter;
+  });
 
   return (
     <div className="flex flex-col gap-3">
@@ -141,6 +145,9 @@ export default function LinksPage() {
                   href={it.url ?? "#"}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => {
+                    if (rs !== "read") setRead(it, "read");
+                  }}
                   className="line-clamp-2 text-sm font-medium text-ink-900 hover:text-signal-600"
                 >
                   {m.title ?? it.title}
@@ -159,9 +166,13 @@ export default function LinksPage() {
                       onClick={() =>
                         setRead(it, rs === "read" ? "unread" : "read")
                       }
-                      className="font-mono text-[11px] hover:text-signal-600"
+                      className={
+                        "font-mono text-[11px] hover:text-signal-600 " +
+                        (rs === "read" ? "text-ink-400" : "text-signal-600")
+                      }
+                      title="읽음 상태 토글"
                     >
-                      {readLabel[rs]}
+                      {rs === "read" ? "읽음" : "읽기 전"}
                     </button>
                     <button
                       onClick={() => toggleFav(it)}
