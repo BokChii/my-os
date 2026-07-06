@@ -27,6 +27,7 @@ export default function InboxPage() {
       .select("*")
       .eq("status", "inbox")
       .eq("is_archived", false)
+      .neq("type", "link")
       .order("created_at", { ascending: false });
     if (active) q = q.eq("project_id", active);
     const { data } = await q;
