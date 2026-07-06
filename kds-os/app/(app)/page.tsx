@@ -1,6 +1,21 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Circle, CircleCheck, ChevronLeft, ChevronRight } from "lucide-react";
+import { Circle, CircleCheck, ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { supabase } from "@/lib/supabase/client";
 import { useProject } from "@/components/app-shell";
 import { SystemLine } from "@/components/system-line";
@@ -17,7 +32,7 @@ const monthDay = (iso: string) => {
 };
 
 function weekDatesFrom(anchor: Date) {
-  const day = (anchor.getDay() + 6) % 7; // Mon = 0
+  const day = (anchor.getDay() + 6) % 7;
   const mon = new Date(anchor);
   mon.setDate(anchor.getDate() - day);
   return Array.from({ length: 7 }, (_, i) => {
@@ -28,6 +43,88 @@ function weekDatesFrom(anchor: Date) {
 }
 const WEEKDAY = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
+// ── 오늘 할 일 한 줄 (드래그 가능) ─────────────────────────
+function TodoRow({
+  item,
+  index,
+  isTop,
+  isDueToday,
+  projName,
+  onToggle,
+}: {
+  item: Item;
+  index: number;
+  isTop: boolean;
+  isDueToday: boolean;
+  projName: Record<string, string>;
+  onToggle: (it: Item) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const done = item.status === "done";
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={
+        "flex items-center gap-2 rounded-card border px-3 py-3 " +
+        (done
+          ? "border-[0.5px] border-ink-200 bg-ink-0"
+          : isTop
+            ? "border-signal-400 bg-ink-0"
+            : "border-[0.5px] border-ink-200 bg-ink-0")
+      }
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab touch-none text-ink-300 hover:text-ink-400 active:cursor-grabbing"
+        title="드래그로 순서 변경"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <span
+        className={
+          "w-5 font-mono text-[13px] font-medium " +
+          (done ? "text-ink-400" : isTop ? "text-signal-400" : "text-ink-400")
+        }
+      >
+        {String(index + 1).padStart(2, "0")}
+      </span>
+      <span
+        className={
+          "flex-1 truncate text-sm " +
+          (done ? "text-ink-400 line-through" : "text-ink-700")
+        }
+      >
+        {item.title}
+      </span>
+      {isDueToday && !done && (
+        <span className="shrink-0 rounded-full border-[0.5px] border-warning px-2 py-0.5 font-mono text-[10px] text-warning">
+          오늘 마감
+        </span>
+      )}
+      {item.project_id && projName[item.project_id] && (
+        <span className="shrink-0 rounded-full bg-signal-50 px-2 py-0.5 font-mono text-[10px] text-signal-800">
+          {projName[item.project_id]}
+        </span>
+      )}
+      <button onClick={() => onToggle(item)}>
+        {done ? (
+          <CircleCheck className="h-[18px] w-[18px] text-success" />
+        ) : (
+          <Circle className="h-[18px] w-[18px] text-ink-300 hover:text-signal-400" />
+        )}
+      </button>
+    </div>
+  );
+}
+
 export default function CommandCenter() {
   const { active, userId, projects } = useProject();
   const projName = useMemo(() => {
@@ -36,8 +133,7 @@ export default function CommandCenter() {
     return map;
   }, [projects]);
 
-  const [focused, setFocused] = useState<Item[]>([]);
-  const [due, setDue] = useState<Item[]>([]);
+  const [todos, setTodos] = useState<Item[]>([]);
   const [doneToday, setDoneToday] = useState<Item[]>([]);
   const [week, setWeek] = useState<Record<string, Item[]>>({});
   const [reviews, setReviews] = useState<Record<string, Item[]>>({});
@@ -49,11 +145,14 @@ export default function CommandCenter() {
   const [reviewText, setReviewText] = useState("");
   const [reviewSaved, setReviewSaved] = useState(false);
   const [todayReviews, setTodayReviews] = useState<Item[]>([]);
-  const [addingSlot, setAddingSlot] = useState<number | null>(null);
+  const [addingSlot, setAddingSlot] = useState(false);
   const [slotText, setSlotText] = useState("");
   const [loaded, setLoaded] = useState(false);
 
   const today = todayStr();
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  );
 
   const anchor = new Date();
   anchor.setDate(anchor.getDate() + weekOffset * 7);
@@ -61,49 +160,24 @@ export default function CommandCenter() {
   const wStart = fmt(days[0]);
   const wEnd = fmt(days[6]);
 
-  const ProjPill = ({ id }: { id: string | null }) =>
-    id && projName[id] ? (
-      <span className="shrink-0 rounded-full bg-signal-50 px-2 py-0.5 font-mono text-[10px] text-signal-800">
-        {projName[id]}
-      </span>
-    ) : null;
-
   const loadToday = useCallback(async () => {
     const proj = <T,>(q: T): T =>
       active ? (q as { eq: (a: string, b: string) => T }).eq("project_id", active) : q;
 
-    const { data: f } = await proj(
+    // 오늘 할 일 = focus_date 오늘 OR due_date 오늘 (미완료+완료 모두, review 제외)
+    const { data: fdata } = await proj(
       supabase
         .from("items")
         .select("*")
-        .eq("focus_date", today)
         .eq("is_archived", false)
         .neq("type", "review")
+        .or(`focus_date.eq.${today},due_date.eq.${today}`)
         .order("focus_rank", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true }),
     );
-    setFocused((f as Item[]) ?? []);
-
-    const { data: d } = await proj(
-      supabase
-        .from("items")
-        .select("*")
-        .eq("due_date", today)
-        .eq("is_archived", false)
-        .neq("type", "review")
-        .neq("status", "done"),
-    );
-    setDue((d as Item[]) ?? []);
-
-    const { data: dt } = await proj(
-      supabase
-        .from("items")
-        .select("*")
-        .eq("focus_date", today)
-        .eq("status", "done")
-        .neq("type", "review"),
-    );
-    setDoneToday((dt as Item[]) ?? []);
+    const all = (fdata as Item[]) ?? [];
+    setTodos(all.filter((it) => it.status !== "done"));
+    setDoneToday(all.filter((it) => it.status === "done"));
 
     const { data: tr } = await proj(
       supabase
@@ -199,12 +273,11 @@ export default function CommandCenter() {
   async function toggleDone(it: Item) {
     const next = it.status === "done" ? "active" : "done";
     await supabase.from("items").update({ status: next }).eq("id", it.id);
-    const updated = focused.map((x) =>
-      x.id === it.id ? { ...x, status: next } : x,
-    );
-    const allDone =
-      updated.length > 0 && updated.every((x) => x.status === "done");
-    if (allDone && userId) {
+    // 남는 미완료가 0이면 미션 클리어
+    const remaining =
+      todos.filter((x) => x.id !== it.id).length + (next === "done" ? 0 : 1);
+    const hadAny = todos.length + doneToday.length > 0;
+    if (next === "done" && remaining === 0 && hadAny && userId) {
       await supabase
         .from("daily_logs")
         .upsert(
@@ -216,10 +289,29 @@ export default function CommandCenter() {
     loadWeek();
   }
 
-  async function addToSlot() {
+  async function handleDragEnd(e: DragEndEvent) {
+    const { active: a, over } = e;
+    if (!over || a.id === over.id) return;
+    const oldIdx = todos.findIndex((t) => t.id === a.id);
+    const newIdx = todos.findIndex((t) => t.id === over.id);
+    if (oldIdx < 0 || newIdx < 0) return;
+    const reordered = arrayMove(todos, oldIdx, newIdx);
+    setTodos(reordered); // 낙관적
+    // focus_date=today + focus_rank 순번 저장
+    await Promise.all(
+      reordered.map((t, i) =>
+        supabase
+          .from("items")
+          .update({ focus_rank: i + 1, focus_date: t.focus_date ?? today })
+          .eq("id", t.id),
+      ),
+    );
+  }
+
+  async function addTodo() {
     const title = slotText.trim();
     if (!title || !userId) {
-      setAddingSlot(null);
+      setAddingSlot(false);
       setSlotText("");
       return;
     }
@@ -229,9 +321,10 @@ export default function CommandCenter() {
       title,
       status: "active",
       focus_date: today,
+      focus_rank: todos.length + 1,
       project_id: active,
     });
-    setAddingSlot(null);
+    setAddingSlot(false);
     setSlotText("");
     loadToday();
     loadWeek();
@@ -268,41 +361,35 @@ export default function CommandCenter() {
 
   if (!loaded) return <SystemLine>불러오는 중…</SystemLine>;
 
-  const top3 = focused.slice(0, 3);
-  const emptySlots = Math.max(0, 3 - top3.length);
-  const missionClear =
-    focused.length > 0 && focused.every((it) => it.status === "done");
+  const dueTodaySet = new Set(
+    [...todos, ...doneToday].filter((it) => it.due_date === today).map((it) => it.id),
+  );
+  const missionClear = todos.length === 0 && doneToday.length > 0;
 
   const hour = new Date().getHours();
   const greet =
-    hour < 5
-      ? "늦은 밤이에요"
-      : hour < 12
-        ? "좋은 아침"
-        : hour < 18
-          ? "좋은 오후"
-          : "좋은 저녁";
+    hour < 5 ? "늦은 밤이에요"
+    : hour < 12 ? "좋은 아침"
+    : hour < 18 ? "좋은 오후"
+    : "좋은 저녁";
 
   const selectedItems = selectedDay ? (week[selectedDay] ?? []) : [];
   const selectedReviews = selectedDay ? (reviews[selectedDay] ?? []) : [];
   const weekLabel =
-    weekOffset === 0
-      ? "이번 주"
-      : weekOffset === -1
-        ? "지난주"
-        : weekOffset === 1
-          ? "다음 주"
-          : `${monthDay(wStart)} ~ ${monthDay(wEnd)}`;
+    weekOffset === 0 ? "이번 주"
+    : weekOffset === -1 ? "지난주"
+    : weekOffset === 1 ? "다음 주"
+    : `${monthDay(wStart)} ~ ${monthDay(wEnd)}`;
 
   return (
     <div className="flex flex-col gap-5">
       <div>
         <SystemLine>
-          {greet}. 오늘 마감 {due.length}건, inbox에 {inboxCount}개 대기 중.
+          {greet}. 오늘 할 일 {todos.length}개, inbox에 {inboxCount}개 대기 중.
         </SystemLine>
         {oldest && (
           <SystemLine>
-            가장 오래 미룬 건 &ldquo;{oldest}&rdquo;. 오늘의 top 3를 고르세요.
+            가장 오래 미룬 건 &ldquo;{oldest}&rdquo;. 위 3개가 오늘의 우선순위예요.
           </SystemLine>
         )}
         {missionClear && streak > 0 && (
@@ -314,116 +401,89 @@ export default function CommandCenter() {
 
       <div>
         <p className="mb-2 font-mono text-[11px] tracking-wide text-ink-400">
-          TODAY / TOP 3
+          TODAY · 위 3개가 TOP 3
         </p>
-        <div className="flex flex-col gap-2">
-          {top3.map((it, i) => {
-            const done = it.status === "done";
-            return (
-              <div
-                key={it.id}
-                className={
-                  "flex items-center gap-3 rounded-card border-[0.5px] px-3.5 py-3 " +
-                  (done ? "border-ink-200" : "border-signal-200")
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={todos.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="flex flex-col gap-2">
+              {todos.map((it, i) => (
+                <TodoRow
+                  key={it.id}
+                  item={it}
+                  index={i}
+                  isTop={i < 3}
+                  isDueToday={dueTodaySet.has(it.id)}
+                  projName={projName}
+                  onToggle={toggleDone}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        {addingSlot ? (
+          <div className="mt-2 flex items-center gap-2 rounded-card border border-dashed border-signal-400 px-3 py-3">
+            <span className="w-5 font-mono text-[13px] text-ink-400">
+              {String(todos.length + 1).padStart(2, "0")}
+            </span>
+            <input
+              autoFocus
+              value={slotText}
+              onChange={(e) => setSlotText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addTodo();
+                if (e.key === "Escape") {
+                  setAddingSlot(false);
+                  setSlotText("");
                 }
-              >
-                <span
-                  className={
-                    "font-mono text-[13px] font-medium " +
-                    (done ? "text-ink-400" : "text-signal-400")
-                  }
+              }}
+              onBlur={addTodo}
+              placeholder="오늘 할 일 입력 후 enter…"
+              className="flex-1 border-none bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              setAddingSlot(true);
+              setSlotText("");
+            }}
+            className="mt-2 w-full rounded-card border border-dashed border-ink-300 px-3 py-2.5 text-left text-[13px] text-ink-400 hover:border-signal-400 hover:text-signal-600"
+          >
+            + 오늘 할 일 추가하거나 ⌘K
+          </button>
+        )}
+
+        {doneToday.length > 0 && (
+          <div className="mt-3">
+            <p className="mb-1.5 font-mono text-[11px] text-ink-400">
+              완료 {doneToday.length}
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {doneToday.map((it) => (
+                <div
+                  key={it.id}
+                  className="flex items-center gap-2 rounded-card border-[0.5px] border-ink-200 bg-ink-0 px-3 py-2"
                 >
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span
-                  className={
-                    "flex-1 truncate text-sm " +
-                    (done ? "text-ink-400 line-through" : "text-ink-700")
-                  }
-                >
-                  {it.title}
-                </span>
-                <ProjPill id={it.project_id} />
-                <button onClick={() => toggleDone(it)}>
-                  {done ? (
+                  <span className="flex-1 truncate text-sm text-ink-400 line-through">
+                    {it.title}
+                  </span>
+                  <button onClick={() => toggleDone(it)}>
                     <CircleCheck className="h-[18px] w-[18px] text-success" />
-                  ) : (
-                    <Circle className="h-[18px] w-[18px] text-ink-300 hover:text-signal-400" />
-                  )}
-                </button>
-              </div>
-            );
-          })}
-          {Array.from({ length: emptySlots }).map((_, i) => {
-            const slotNo = top3.length + i;
-            const isAdding = addingSlot === slotNo;
-            return (
-              <div
-                key={`e${i}`}
-                className={
-                  "flex items-center gap-3 rounded-card border border-dashed px-3.5 py-3 " +
-                  (isAdding ? "border-signal-400" : "border-ink-300")
-                }
-              >
-                <span className="font-mono text-[13px] text-ink-400">
-                  {String(slotNo + 1).padStart(2, "0")}
-                </span>
-                {isAdding ? (
-                  <input
-                    autoFocus
-                    value={slotText}
-                    onChange={(e) => setSlotText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") addToSlot();
-                      if (e.key === "Escape") {
-                        setAddingSlot(null);
-                        setSlotText("");
-                      }
-                    }}
-                    onBlur={addToSlot}
-                    placeholder="오늘 할 일 입력 후 enter…"
-                    className="flex-1 border-none bg-transparent text-sm text-ink-900 outline-none placeholder:text-ink-400"
-                  />
-                ) : (
-                  <button
-                    onClick={() => {
-                      setAddingSlot(slotNo);
-                      setSlotText("");
-                    }}
-                    className="flex-1 text-left text-[13px] text-ink-400 hover:text-signal-600"
-                  >
-                    + 여기를 눌러 바로 추가하거나 ⌘K
                   </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {focused.length > 3 && (
-          <p className="mt-2 font-mono text-[11px] text-ink-400">
-            + 오늘 항목 {focused.length - 3}개 더
-          </p>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
-
-      {due.length > 0 && (
-        <div>
-          <p className="mb-2 font-mono text-[11px] tracking-wide text-ink-400">
-            DUE TODAY / {due.length}
-          </p>
-          <ul className="flex flex-col gap-1.5">
-            {due.map((it) => (
-              <li
-                key={it.id}
-                className="flex items-center gap-2 rounded-card border-[0.5px] border-ink-200 bg-ink-0 px-3.5 py-2.5 text-sm text-ink-700"
-              >
-                <span className="flex-1 truncate">{it.title}</span>
-                <ProjPill id={it.project_id} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       <div>
         <div className="mb-2 flex items-center justify-between">
@@ -444,7 +504,7 @@ export default function CommandCenter() {
               <button
                 onClick={() => {
                   setWeekOffset(0);
-                  setSelectedDay(null);
+                  setSelectedDay(today);
                 }}
                 className="rounded px-1.5 font-mono text-[11px] text-ink-400 hover:text-signal-600"
               >
@@ -465,8 +525,7 @@ export default function CommandCenter() {
         <div className="grid grid-cols-7 gap-1.5">
           {days.map((d, i) => {
             const key = fmt(d);
-            const items = week[key] ?? [];
-            const n = items.length;
+            const n = (week[key] ?? []).length;
             const hasReview = (reviews[key] ?? []).length > 0;
             const isToday = key === today;
             const isSelected = key === selectedDay;
@@ -546,7 +605,11 @@ export default function CommandCenter() {
                       {it.type}
                     </span>
                     <span className="flex-1 truncate">{it.title}</span>
-                    <ProjPill id={it.project_id} />
+                    {it.project_id && projName[it.project_id] && (
+                      <span className="shrink-0 rounded-full bg-signal-50 px-2 py-0.5 font-mono text-[10px] text-signal-800">
+                        {projName[it.project_id]}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -573,26 +636,10 @@ export default function CommandCenter() {
         <p className="mb-3 font-mono text-[11px] tracking-wide text-ink-400">
           EVENING · {monthDay(today)}
         </p>
-        {doneToday.length > 0 && (
-          <div className="mb-2 flex flex-col gap-1">
-            {doneToday.map((it) => (
-              <p
-                key={it.id}
-                className="font-mono text-[12px] text-ink-400 line-through"
-              >
-                ✓ {it.title}
-              </p>
-            ))}
-          </div>
-        )}
-
         {todayReviews.length > 0 && (
           <ul className="mb-2 flex flex-col gap-1">
             {todayReviews.map((r) => (
-              <li
-                key={r.id}
-                className="flex items-start gap-2 text-sm text-ink-700"
-              >
+              <li key={r.id} className="flex items-start gap-2 text-sm text-ink-700">
                 <span className="mt-[2px] font-mono text-[11px] text-signal-400">
                   ›
                 </span>
@@ -601,7 +648,6 @@ export default function CommandCenter() {
             ))}
           </ul>
         )}
-
         <div className="flex items-center gap-2">
           <input
             value={reviewText}
