@@ -80,9 +80,12 @@ export function AppShell({
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center justify-between border-b-[0.5px] border-ink-200 px-5 py-3.5">
           <div className="flex items-center gap-5">
-            <span className="font-mono text-[17px] font-medium tracking-tight text-signal-400">
+            <Link
+              href="/"
+              className="font-mono text-[17px] font-medium tracking-tight text-signal-400 transition hover:text-signal-600"
+            >
               KDS_OS
-            </span>
+            </Link>
             <nav className="flex gap-3 font-mono text-[13px]">
               {NAV.map((n) => (
                 <Link
