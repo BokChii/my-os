@@ -123,7 +123,21 @@ export function CommandPalette({
       return;
     }
     if (it.type === "task") {
-      router.push(it.focus_date ? "/" : "/inbox");
+      const d = it.focus_date ?? it.due_date;
+      if (!d) {
+        router.push("/inbox");
+        return;
+      }
+      const off = new Date().getTimezoneOffset();
+      const todayIso = new Date(Date.now() - off * 60000)
+        .toISOString()
+        .slice(0, 10);
+      if (d === todayIso) {
+        router.push("/");
+      } else {
+        // 같은 페이지(today)에 있을 때도 확실히 반영되도록 전체 이동
+        window.location.assign(`/?date=${d}`);
+      }
       return;
     }
     // note / review / event / template

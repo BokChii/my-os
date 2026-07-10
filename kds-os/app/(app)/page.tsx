@@ -279,6 +279,25 @@ export default function CommandCenter() {
     setReviews(revByDay);
   }, [active, wStart, wEnd]);
 
+  // ⌘K 검색 등에서 /?date=YYYY-MM-DD 로 진입하면 그 주 + 그날을 선택
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get("date");
+    if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    const monday = (dt: Date) => {
+      const day = (dt.getDay() + 6) % 7;
+      const m = new Date(dt);
+      m.setDate(dt.getDate() - day);
+      m.setHours(0, 0, 0, 0);
+      return m;
+    };
+    const target = new Date(`${d}T00:00:00`);
+    const diff = Math.round(
+      (monday(target).getTime() - monday(new Date()).getTime()) / (7 * 864e5),
+    );
+    setWeekOffset(diff);
+    setSelectedDay(d);
+  }, []);
+
   useEffect(() => {
     loadToday();
   }, [loadToday]);
