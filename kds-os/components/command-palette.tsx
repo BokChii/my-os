@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Home,
@@ -8,6 +8,9 @@ import {
   FolderKanban,
   Plus,
   ArrowRight,
+  Circle,
+  FileText,
+  MessageSquare,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -19,7 +22,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { supabase } from "@/lib/supabase/client";
-import type { Project } from "@/types/db";
+import type { Item, Project } from "@/types/db";
 
 function parse(raw: string) {
   const m = raw.match(/https?:\/\/[^\s]+/);
@@ -62,6 +65,8 @@ export function CommandPalette({
   const [projectId, setProjectId] = useState<string | null>(activeProject);
   const [due, setDue] = useState("");
   const [saved, setSaved] = useState(false);
+  const [results, setResults] = useState<Item[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 팔레트 열 때 활성 프로젝트 반영, 닫을 때 입력 초기화
   useEffect(() => {
@@ -71,6 +76,29 @@ export function CommandPalette({
       setDue("");
     }
   }, [open, activeProject]);
+
+  // 2글자 이상 입력 시 300ms 디바운스로 제목 검색
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const query = raw.trim();
+    if (query.length < 2 || /^https?:\/\//.test(query)) {
+      setResults([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from("items")
+        .select("id,type,title,url,project_id,focus_date,status")
+        .eq("is_archived", false)
+        .ilike("title", `%${query}%`)
+        .order("created_at", { ascending: false })
+        .limit(8);
+      setResults((data as Item[]) ?? []);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [raw]);
 
   const q = raw.trim().toLowerCase();
   const preview = parse(raw);
@@ -87,6 +115,30 @@ export function CommandPalette({
     onOpenChange(false);
     router.push(href);
   }
+
+  function openResult(it: Item) {
+    onOpenChange(false);
+    if (it.type === "link" && it.url) {
+      window.open(it.url, "_blank");
+      return;
+    }
+    if (it.type === "task") {
+      router.push(it.focus_date ? "/" : "/inbox");
+      return;
+    }
+    // note / review / event / template
+    if (it.project_id) {
+      router.push(`/projects/${it.project_id}`);
+    } else {
+      router.push(it.type === "review" ? "/" : "/inbox");
+    }
+  }
+
+  const resultIcon = (t: Item["type"]) =>
+    t === "link" ? Link2
+    : t === "note" ? FileText
+    : t === "review" ? MessageSquare
+    : Circle;
 
   async function save() {
     if (!raw.trim()) return;
@@ -149,6 +201,43 @@ export function CommandPalette({
                     {preview.type === "link" ? "링크로 저장" : "할 일로 저장"}
                   </span>
                 </CommandItem>
+              </CommandGroup>
+            )}
+
+            {results.length > 0 && (
+              <CommandGroup
+                heading={
+                  <span className="font-mono text-[10px] tracking-wide text-ink-400">
+                    검색 결과
+                  </span>
+                }
+              >
+                {results.map((it) => {
+                  const I = resultIcon(it.type);
+                  return (
+                    <CommandItem
+                      key={it.id}
+                      value={`__result_${it.id}`}
+                      onSelect={() => openResult(it)}
+                      className="gap-2"
+                    >
+                      <I className="h-4 w-4 shrink-0 text-ink-400" />
+                      <span
+                        className={
+                          "flex-1 truncate text-sm " +
+                          (it.status === "done"
+                            ? "text-ink-400 line-through"
+                            : "text-ink-700")
+                        }
+                      >
+                        {it.title}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] text-ink-400">
+                        {it.type}
+                      </span>
+                    </CommandItem>
+                  );
+                })}
               </CommandGroup>
             )}
 
