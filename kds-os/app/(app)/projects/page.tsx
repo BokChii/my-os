@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Archive, ArchiveRestore, Check, X, Pencil } from "lucide-react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useProject } from "@/components/app-shell";
 import { SystemLine } from "@/components/system-line";
@@ -138,9 +139,12 @@ export default function ProjectsPage() {
                 className="flex-1 border-none bg-transparent text-sm text-ink-900 outline-none"
               />
             ) : (
-              <span className="flex-1 truncate text-sm text-ink-700">
+              <Link
+                href={`/projects/${p.id}`}
+                className="flex-1 truncate text-sm text-ink-700 hover:text-signal-600"
+              >
                 {p.name}
-              </span>
+              </Link>
             )}
 
             <span className="font-mono text-[11px] text-ink-400">
