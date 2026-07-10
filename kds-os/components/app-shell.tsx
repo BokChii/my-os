@@ -68,6 +68,9 @@ export function AppShell({
     return () => window.removeEventListener("keydown", h);
   }, []);
 
+  // 프로젝트 상세(/projects/[id])에선 상단 스위처를 숨김
+  const isProjectDetail = /^\/projects\/[^/]+$/.test(pathname);
+
   const today = new Date()
     .toLocaleDateString("en-US", {
       month: "numeric",
@@ -115,20 +118,22 @@ export function AppShell({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 px-5 py-2.5">
-          <Pill on={active === null} onClick={() => setActive(null)}>
-            전체
-          </Pill>
-          {projects.map((p) => (
-            <Pill
-              key={p.id}
-              on={active === p.id}
-              onClick={() => setActive(p.id)}
-            >
-              {p.name}
+        {!isProjectDetail && (
+          <div className="flex flex-wrap items-center gap-2 px-5 py-2.5">
+            <Pill on={active === null} onClick={() => setActive(null)}>
+              전체
             </Pill>
-          ))}
-        </div>
+            {projects.map((p) => (
+              <Pill
+                key={p.id}
+                on={active === p.id}
+                onClick={() => setActive(p.id)}
+              >
+                {p.name}
+              </Pill>
+            ))}
+          </div>
+        )}
 
         <main className="px-5 py-3">{children}</main>
       </div>
