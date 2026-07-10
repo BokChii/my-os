@@ -16,6 +16,7 @@ export default async function AppLayout({
   const { data: projects } = await supabase
     .from("projects")
     .select("*")
+    .eq("is_archived", false)
     .order("sort_order");
 
   return (

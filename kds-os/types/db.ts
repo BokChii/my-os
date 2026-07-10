@@ -8,6 +8,7 @@ export interface Project {
   color: string | null;
   status: "active" | "paused" | "done";
   sort_order: number;
+  is_archived?: boolean;
 }
 
 export interface Item {
