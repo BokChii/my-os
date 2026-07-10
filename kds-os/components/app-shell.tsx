@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Project } from "@/types/db";
-import { QuickCapture } from "./quick-capture";
+import { CommandPalette } from "./command-palette";
 
 type Ctx = { active: string | null; userId: string; projects: Project[] };
 const ProjectCtx = createContext<Ctx>({
@@ -137,7 +137,7 @@ export function AppShell({
 
         <main className="px-5 py-3">{children}</main>
       </div>
-      <QuickCapture
+      <CommandPalette
         open={captureOpen}
         onOpenChange={setCaptureOpen}
         userId={userId}
