@@ -68,8 +68,8 @@ export function AppShell({
     return () => window.removeEventListener("keydown", h);
   }, []);
 
-  // 프로젝트 상세(/projects/[id])에선 상단 스위처를 숨김
-  const isProjectDetail = /^\/projects\/[^/]+$/.test(pathname);
+  // 프로젝트 섹션(/projects, /projects/[id])에선 상단 스위처를 숨김
+  const isProjectSection = pathname.startsWith("/projects");
 
   const today = new Date()
     .toLocaleDateString("en-US", {
@@ -118,7 +118,7 @@ export function AppShell({
           </div>
         </div>
 
-        {!isProjectDetail && (
+        {!isProjectSection && (
           <div className="flex flex-wrap items-center gap-2 px-5 py-2.5">
             <Pill on={active === null} onClick={() => setActive(null)}>
               전체
