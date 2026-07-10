@@ -1,4 +1,10 @@
-export type ItemType = "task" | "note" | "link" | "event" | "template";
+export type ItemType =
+  | "task"
+  | "note"
+  | "link"
+  | "event"
+  | "template"
+  | "review";
 export type ItemStatus = "inbox" | "active" | "done" | "archived";
 export type ReadState = "unread" | "reading" | "read";
 

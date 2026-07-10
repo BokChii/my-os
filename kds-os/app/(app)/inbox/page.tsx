@@ -13,6 +13,7 @@ const icon: Record<ItemType, React.ElementType> = {
   link: Link2,
   event: Calendar,
   template: Copy,
+  review: FileText,
 };
 const daysSince = (iso: string) =>
   Math.floor((Date.now() - +new Date(iso)) / 864e5);
