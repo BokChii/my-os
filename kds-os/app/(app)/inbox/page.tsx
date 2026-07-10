@@ -4,6 +4,7 @@ import { Circle, FileText, Link2, Calendar, Copy, CalendarPlus } from "lucide-re
 import { supabase } from "@/lib/supabase/client";
 import { useProject } from "@/components/app-shell";
 import { SystemLine } from "@/components/system-line";
+import { ProjectPicker } from "@/components/project-picker";
 import type { Item, ItemType } from "@/types/db";
 
 const icon: Record<ItemType, React.ElementType> = {
@@ -74,6 +75,11 @@ export default function InboxPage() {
               <span className="flex-1 truncate text-sm text-ink-700">
                 {it.title}
               </span>
+              <ProjectPicker
+                itemId={it.id}
+                projectId={it.project_id}
+                onChanged={load}
+              />
               <div className="flex shrink-0 items-center gap-1.5 font-mono text-[11px]">
                 <button
                   onClick={() =>

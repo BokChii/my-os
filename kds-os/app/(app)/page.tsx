@@ -19,6 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { supabase } from "@/lib/supabase/client";
 import { useProject } from "@/components/app-shell";
 import { SystemLine } from "@/components/system-line";
+import { ProjectPicker } from "@/components/project-picker";
 import type { Item, Project } from "@/types/db";
 
 function fmt(d: Date) {
@@ -49,15 +50,15 @@ function TodoRow({
   index,
   isTop,
   isDueToday,
-  projName,
   onToggle,
+  onProjectChange,
 }: {
   item: Item;
   index: number;
   isTop: boolean;
   isDueToday: boolean;
-  projName: Record<string, string>;
   onToggle: (it: Item) => void;
+  onProjectChange: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
@@ -109,11 +110,11 @@ function TodoRow({
           오늘 마감
         </span>
       )}
-      {item.project_id && projName[item.project_id] && (
-        <span className="shrink-0 rounded-full bg-signal-50 px-2 py-0.5 font-mono text-[10px] text-signal-800">
-          {projName[item.project_id]}
-        </span>
-      )}
+      <ProjectPicker
+        itemId={item.id}
+        projectId={item.project_id}
+        onChanged={onProjectChange}
+      />
       <button onClick={() => onToggle(item)}>
         {done ? (
           <CircleCheck className="h-[18px] w-[18px] text-success" />
@@ -498,8 +499,11 @@ export default function CommandCenter() {
                   index={i}
                   isTop={i < 3}
                   isDueToday={dueTodaySet.has(it.id)}
-                  projName={projName}
                   onToggle={toggleDone}
+                  onProjectChange={() => {
+                    loadToday();
+                    loadWeek();
+                  }}
                 />
               ))}
             </div>
