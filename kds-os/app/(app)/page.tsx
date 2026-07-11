@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useProject } from "@/components/app-shell";
 import { SystemLine } from "@/components/system-line";
 import { ProjectPicker } from "@/components/project-picker";
+import { TimePicker, fmtTime } from "@/components/time-picker";
 import type { Item, Project } from "@/types/db";
 
 function fmt(d: Date) {
@@ -110,6 +111,13 @@ function TodoRow({
           오늘 마감
         </span>
       )}
+      <TimePicker
+        itemId={item.id}
+        dateAnchor={item.focus_date ?? item.due_date ?? todayStr()}
+        startAt={item.start_at}
+        endAt={item.end_at}
+        onChanged={onProjectChange}
+      />
       <ProjectPicker
         itemId={item.id}
         projectId={item.project_id}
@@ -247,7 +255,7 @@ export default function CommandCenter() {
     const { data: wk } = await proj(
       supabase
         .from("items")
-        .select("id,title,type,project_id,due_date,focus_date,status")
+        .select("id,title,type,project_id,due_date,focus_date,status,start_at,end_at")
         .eq("is_archived", false)
         .neq("type", "review")
         .or(
@@ -710,6 +718,12 @@ export default function CommandCenter() {
                     >
                       {it.title}
                     </span>
+                    {it.start_at && (
+                      <span className="shrink-0 font-mono text-[10px] text-ink-400">
+                        {fmtTime(it.start_at)}
+                        {it.end_at ? `~${fmtTime(it.end_at)}` : ""}
+                      </span>
+                    )}
                     {it.project_id && projName[it.project_id] && (
                       <span className="shrink-0 rounded-full bg-signal-50 px-2 py-0.5 font-mono text-[10px] text-signal-800">
                         {projName[it.project_id]}

@@ -78,6 +78,7 @@ export function CommandPalette({
   const [raw, setRaw] = useState("");
   const [projectId, setProjectId] = useState<string | null>(activeProject);
   const [due, setDue] = useState("");
+  const [time, setTime] = useState("");
   const [saved, setSaved] = useState(false);
   const [results, setResults] = useState<Item[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,6 +89,7 @@ export function CommandPalette({
     else {
       setRaw("");
       setDue("");
+      setTime("");
     }
   }, [open, activeProject]);
 
@@ -171,18 +173,29 @@ export function CommandPalette({
   async function save() {
     if (!raw.trim()) return;
     const p = parse(raw);
+    const off = new Date().getTimezoneOffset();
+    const todayIso = new Date(Date.now() - off * 60000)
+      .toISOString()
+      .slice(0, 10);
+    // 시간만 있고 날짜가 없으면 오늘로
+    const dateFor = due || (time ? todayIso : null);
+    const startAt = time && dateFor
+      ? new Date(`${dateFor}T${time}:00`).toISOString()
+      : null;
     await supabase.from("items").insert({
       user_id: userId,
       type: p.type,
       title: p.title,
       url: p.url,
       project_id: projectId,
-      due_date: due || null,
+      due_date: dateFor,
+      start_at: startAt,
       status: "inbox",
       ...(p.type === "link" ? { metadata: { read_state: "unread" } } : {}),
     });
     setRaw("");
     setDue("");
+    setTime("");
     setSaved(true);
     setTimeout(() => setSaved(false), 1400);
   }
@@ -346,6 +359,13 @@ export function CommandPalette({
                 value={due}
                 onChange={(e) => setDue(e.target.value)}
                 className="h-7 w-[130px] shrink-0 rounded border-[0.5px] border-ink-200 bg-ink-0 px-2 text-xs text-ink-500 outline-none"
+              />
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="h-7 w-[90px] shrink-0 rounded border-[0.5px] border-ink-200 bg-ink-0 px-2 text-xs text-ink-500 outline-none"
+                title="시간 (선택)"
               />
               {saved && (
                 <span className="font-mono text-[11px] text-signal-400">
