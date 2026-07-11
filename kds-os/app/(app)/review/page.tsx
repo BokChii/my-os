@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useProject } from "@/components/app-shell";
 import { SystemLine } from "@/components/system-line";
@@ -204,6 +204,42 @@ export default function WeeklyReview() {
           </div>
         )}
       </div>
+
+      {/* 완료한 것 */}
+      {done.length > 0 && (
+        <div>
+          <p className="mb-2 font-mono text-[11px] tracking-wide text-ink-400">
+            완료한 것 · {done.length}개
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {[...done]
+              .sort((a, b) =>
+                (a.focus_date ?? a.due_date ?? "").localeCompare(
+                  b.focus_date ?? b.due_date ?? "",
+                ),
+              )
+              .map((it) => (
+                <li
+                  key={it.id}
+                  className="flex items-center gap-2 rounded-card border-[0.5px] border-ink-200 bg-ink-0 px-3.5 py-2 text-sm"
+                >
+                  <CircleCheck className="h-4 w-4 shrink-0 text-success" />
+                  <span className="shrink-0 font-mono text-[10px] text-ink-400">
+                    {monthDay(it.focus_date ?? it.due_date ?? wStart)}
+                  </span>
+                  <span className="flex-1 truncate text-ink-700">
+                    {it.title}
+                  </span>
+                  {it.project_id && projName[it.project_id] && (
+                    <span className="shrink-0 rounded-full bg-signal-50 px-2 py-0.5 font-mono text-[10px] text-signal-800">
+                      {projName[it.project_id]}
+                    </span>
+                  )}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
 
       {/* 이번 주 회고 */}
       <div>

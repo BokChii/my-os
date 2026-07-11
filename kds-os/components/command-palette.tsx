@@ -11,6 +11,7 @@ import {
   Circle,
   FileText,
   MessageSquare,
+  CalendarCheck,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -44,6 +45,12 @@ const PAGES = [
     label: "projects",
     icon: FolderKanban,
     keywords: ["projects", "프로젝트"],
+  },
+  {
+    href: "/review",
+    label: "review",
+    icon: CalendarCheck,
+    keywords: ["review", "리뷰", "회고", "주간"],
   },
 ];
 
