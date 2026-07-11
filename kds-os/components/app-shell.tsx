@@ -42,6 +42,7 @@ const NAV = [
   { href: "/inbox", label: "inbox" },
   { href: "/links", label: "links" },
   { href: "/projects", label: "projects" },
+  { href: "/review", label: "review" },
 ];
 
 export function AppShell({
