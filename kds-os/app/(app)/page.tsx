@@ -695,17 +695,21 @@ export default function CommandCenter() {
                 {selectedItems.map((it) => (
                   <li
                     key={it.id}
-                    className={
-                      "flex items-center gap-2 rounded-card border-[0.5px] border-ink-200 bg-ink-0 px-3.5 py-2 text-sm " +
-                      (it.status === "done"
-                        ? "text-ink-400 line-through"
-                        : "text-ink-700")
-                    }
+                    className="flex items-center gap-2 rounded-card border-[0.5px] border-ink-200 bg-ink-0 px-3.5 py-2 text-sm"
                   >
                     <span className="font-mono text-[10px] text-ink-400">
                       {it.type}
                     </span>
-                    <span className="flex-1 truncate">{it.title}</span>
+                    <span
+                      className={
+                        "flex-1 truncate " +
+                        (it.status === "done"
+                          ? "text-ink-400 line-through"
+                          : "text-ink-700")
+                      }
+                    >
+                      {it.title}
+                    </span>
                     {it.project_id && projName[it.project_id] && (
                       <span className="shrink-0 rounded-full bg-signal-50 px-2 py-0.5 font-mono text-[10px] text-signal-800">
                         {projName[it.project_id]}
