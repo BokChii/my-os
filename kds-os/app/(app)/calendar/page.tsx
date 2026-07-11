@@ -225,6 +225,48 @@ export default function CalendarPage() {
             );
           })}
         </div>
+
+        {/* 범례 — 이번 달에 등장하는 것만 */}
+        {(() => {
+          const allItems = Object.values(items).flat();
+          const usedProjects = [
+            ...new Set(
+              allItems
+                .map((it) => it.project_id)
+                .filter((v): v is string => !!v),
+            ),
+          ].filter((id) => projName[id]);
+          const hasNone = allItems.some((it) => !it.project_id);
+          const hasReview = Object.keys(reviews).length > 0;
+          const hasDone = allItems.some((it) => it.status === "done");
+          if (allItems.length === 0 && !hasReview) return null;
+          return (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-ink-400">
+              {usedProjects.map((id) => (
+                <span key={id} className="flex items-center gap-1">
+                  <span
+                    className="h-[5px] w-[5px] rounded-full"
+                    style={{ background: projColor[id] }}
+                  />
+                  {projName[id]}
+                </span>
+              ))}
+              {hasNone && (
+                <span className="flex items-center gap-1">
+                  <span className="h-[5px] w-[5px] rounded-full bg-signal-400" />
+                  미지정
+                </span>
+              )}
+              {hasReview && (
+                <span className="flex items-center gap-1">
+                  <span className="h-[5px] w-[5px] rounded-full bg-ink-300" />
+                  회고
+                </span>
+              )}
+              {hasDone && <span>흐림 = 완료</span>}
+            </div>
+          );
+        })()}
       </div>
 
       {selectedDay && (
