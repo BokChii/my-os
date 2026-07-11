@@ -12,7 +12,6 @@ import {
   FileText,
   MessageSquare,
   CalendarCheck,
-  CalendarDays,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -52,12 +51,6 @@ const PAGES = [
     label: "review",
     icon: CalendarCheck,
     keywords: ["review", "리뷰", "회고", "주간"],
-  },
-  {
-    href: "/calendar",
-    label: "calendar",
-    icon: CalendarDays,
-    keywords: ["calendar", "캘린더", "달력", "월간"],
   },
 ];
 
