@@ -44,6 +44,7 @@ const NAV = [
   { href: "/projects", label: "projects" },
   { href: "/review", label: "review" },
   { href: "/calendar", label: "calendar" },
+  { href: "/templates", label: "templates" },
 ];
 
 export function AppShell({

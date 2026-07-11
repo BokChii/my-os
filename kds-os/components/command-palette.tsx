@@ -13,6 +13,7 @@ import {
   MessageSquare,
   CalendarCheck,
   CalendarDays,
+  Copy,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -58,6 +59,12 @@ const PAGES = [
     label: "calendar",
     icon: CalendarDays,
     keywords: ["calendar", "캘린더", "달력", "월간"],
+  },
+  {
+    href: "/templates",
+    label: "templates",
+    icon: Copy,
+    keywords: ["templates", "템플릿", "양식"],
   },
 ];
 
@@ -156,7 +163,11 @@ export function CommandPalette({
       }
       return;
     }
-    // note / review / event / template
+    if (it.type === "template") {
+      router.push("/templates");
+      return;
+    }
+    // note / review / event
     if (it.project_id) {
       router.push(`/projects/${it.project_id}`);
     } else {
