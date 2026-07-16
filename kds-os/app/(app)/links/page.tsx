@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Star, Archive } from "lucide-react";
+import { Star, Archive, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useProject } from "@/components/app-shell";
 import { SystemLine } from "@/components/system-line";
@@ -22,6 +22,7 @@ export default function LinksPage() {
   const { active } = useProject();
   const [items, setItems] = useState<Item[] | null>(null);
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const tried = useRef<Set<string>>(new Set());
 
   const query = useCallback(async () => {
@@ -72,6 +73,12 @@ export default function LinksPage() {
   }
   async function archive(it: Item) {
     await supabase.from("items").update({ is_archived: true }).eq("id", it.id);
+    load();
+  }
+
+  async function remove(it: Item) {
+    await supabase.from("items").delete().eq("id", it.id);
+    setConfirmId(null);
     load();
   }
 
@@ -187,10 +194,35 @@ export default function LinksPage() {
                     </button>
                     <button
                       onClick={() => archive(it)}
-                      className="hover:text-danger"
-                      title="보관"
+                      className="hover:text-signal-600"
+                      title="보관 (숨김)"
                     >
                       <Archive className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirmId === it.id) {
+                          remove(it);
+                        } else {
+                          setConfirmId(it.id);
+                          setTimeout(
+                            () =>
+                              setConfirmId((c) => (c === it.id ? null : c)),
+                            2500,
+                          );
+                        }
+                      }}
+                      className={
+                        confirmId === it.id
+                          ? "flex items-center gap-1 text-danger"
+                          : "hover:text-danger"
+                      }
+                      title="삭제 (완전 삭제)"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {confirmId === it.id && (
+                        <span className="font-mono text-[10px]">한 번 더</span>
+                      )}
                     </button>
                   </div>
                 </div>
