@@ -32,6 +32,7 @@ export interface Item {
   reminder_at: string | null;
   focus_date: string | null;
   focus_rank: number | null;
+  routine_id: string | null;
   url: string | null;
   metadata: {
     title?: string;
@@ -46,4 +47,18 @@ export interface Item {
   is_archived: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type RoutineFreq = "daily" | "weekly" | "biweekly" | "monthly";
+
+export interface Routine {
+  id: string;
+  title: string;
+  freq: RoutineFreq;
+  weekdays: number[] | null; // 0=월 … 6=일
+  month_day: number | null; // 1~31
+  anchor_date: string | null;
+  project_id: string | null;
+  is_active: boolean;
+  created_at: string;
 }

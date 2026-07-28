@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Circle, CircleCheck, ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
+import { Circle, CircleCheck, ChevronLeft, ChevronRight, GripVertical, Repeat } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -21,7 +21,8 @@ import { useProject } from "@/components/app-shell";
 import { SystemLine } from "@/components/system-line";
 import { ProjectPicker } from "@/components/project-picker";
 import { TimePicker, fmtTime } from "@/components/time-picker";
-import type { Item, Project } from "@/types/db";
+import { RoutineManager } from "@/components/routine-manager";
+import type { Item, Project, Routine } from "@/types/db";
 
 function fmt(d: Date) {
   const off = d.getTimezoneOffset();
@@ -98,6 +99,9 @@ function TodoRow({
       >
         {String(index + 1).padStart(2, "0")}
       </span>
+      {item.routine_id && (
+        <Repeat className="h-3 w-3 shrink-0 text-ink-300" />
+      )}
       <span
         className={
           "flex-1 truncate text-sm " +
@@ -156,6 +160,7 @@ export default function CommandCenter() {
   const [reviewSaved, setReviewSaved] = useState(false);
   const [todayReviews, setTodayReviews] = useState<Item[]>([]);
   const [addingSlot, setAddingSlot] = useState(false);
+  const [routineOpen, setRoutineOpen] = useState(false);
   const [slotText, setSlotText] = useState("");
   const [loaded, setLoaded] = useState(false);
 
@@ -170,7 +175,82 @@ export default function CommandCenter() {
   const wStart = fmt(days[0]);
   const wEnd = fmt(days[6]);
 
+  // 오늘 해당하는 루틴을 items로 생성 (접속 시 lazy 생성, 중복은 DB 인덱스가 방어)
+  const ensureRoutines = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from("routines")
+      .select("*")
+      .eq("is_active", true);
+    const list = (data as Routine[]) ?? [];
+    if (!list.length) return;
+
+    const now = new Date();
+    const dow = (now.getDay() + 6) % 7; // 0=월
+    const dom = now.getDate();
+    const daysInMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+    ).getDate();
+    const monday = (d: Date) => {
+      const m = new Date(d);
+      m.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      m.setHours(0, 0, 0, 0);
+      return m;
+    };
+
+    const due = list.filter((r) => {
+      if (r.freq === "daily") return true;
+      if (r.freq === "weekly") return (r.weekdays ?? []).includes(dow);
+      if (r.freq === "biweekly") {
+        if (!(r.weekdays ?? []).includes(dow)) return false;
+        const anchor = monday(
+          new Date(`${r.anchor_date ?? today}T00:00:00`),
+        );
+        const diffW = Math.round(
+          (monday(now).getTime() - anchor.getTime()) / (7 * 864e5),
+        );
+        return diffW % 2 === 0;
+      }
+      if (r.freq === "monthly") {
+        const target = Math.min(r.month_day ?? 1, daysInMonth);
+        return dom === target;
+      }
+      return false;
+    });
+    if (!due.length) return;
+
+    const { data: existing } = await supabase
+      .from("items")
+      .select("routine_id")
+      .eq("focus_date", today)
+      .in(
+        "routine_id",
+        due.map((r) => r.id),
+      );
+    const have = new Set(
+      ((existing as { routine_id: string }[]) ?? []).map((e) => e.routine_id),
+    );
+    const missing = due.filter((r) => !have.has(r.id));
+    if (!missing.length) return;
+
+    await supabase.from("items").insert(
+      missing.map((r) => ({
+        user_id: userId,
+        type: "task",
+        title: r.title,
+        status: "active",
+        focus_date: today,
+        routine_id: r.id,
+        project_id: r.project_id,
+      })),
+    );
+  }, [userId, today]);
+
   const loadToday = useCallback(async () => {
+    await ensureRoutines();
+
     const proj = <T,>(q: T): T =>
       active ? (q as { eq: (a: string, b: string) => T }).eq("project_id", active) : q;
 
@@ -208,6 +288,7 @@ export default function CommandCenter() {
         .eq("is_archived", false)
         .neq("type", "review")
         .neq("status", "done")
+        .is("routine_id", null)
         .not("focus_date", "is", null)
         .lt("focus_date", today)
         .order("focus_date", { ascending: true }),
@@ -246,7 +327,7 @@ export default function CommandCenter() {
     }
     setStreak(s);
     setLoaded(true);
-  }, [active, today]);
+  }, [active, today, ensureRoutines]);
 
   const loadWeek = useCallback(async () => {
     const proj = <T,>(q: T): T =>
@@ -506,9 +587,33 @@ export default function CommandCenter() {
       )}
 
       <div>
-        <p className="mb-2 font-mono text-[11px] tracking-wide text-ink-400">
-          TODAY · 위 3개가 TOP 3
-        </p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="font-mono text-[11px] tracking-wide text-ink-400">
+            TODAY · 위 3개가 TOP 3
+          </p>
+          <button
+            onClick={() => setRoutineOpen((v) => !v)}
+            className={
+              "flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px] transition " +
+              (routineOpen
+                ? "text-signal-600"
+                : "text-ink-400 hover:text-signal-600")
+            }
+          >
+            <Repeat className="h-3 w-3" />
+            루틴
+          </button>
+        </div>
+        {routineOpen && (
+          <div className="mb-3">
+            <RoutineManager
+              onChanged={() => {
+                loadToday();
+                loadWeek();
+              }}
+            />
+          </div>
+        )}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
